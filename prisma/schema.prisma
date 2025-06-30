@@ -1,0 +1,188 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  isAdmin       Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts          Account[]
+  sessions          Session[]
+  meals             Meal[]
+  inventoryItems    InventoryItem[]
+  plannedMeals      PlannedMeal[]
+  shoppingLists     ShoppingList[]
+  weeklyInventories WeeklyInventory[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Ingredient {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  unit        String  // e.g., "gram", "stuk", "liter"
+  category    String? // e.g., "groenten", "vlees", "zuivel"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  mealIngredients   MealIngredient[]
+  inventoryItems    InventoryItem[]
+  shoppingListItems ShoppingListItem[]
+}
+
+model Meal {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  instructions String?
+  servings     Int      @default(1)
+  prepTime     Int?     // in minutes
+  cookTime     Int?     // in minutes
+  imageUrl     String?
+  userId       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ingredients     MealIngredient[]
+  plannedMeals    PlannedMeal[]
+}
+
+model MealIngredient {
+  id           String @id @default(cuid())
+  mealId       String
+  ingredientId String
+  quantity     Float
+  notes        String?
+
+  meal       Meal       @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([mealId, ingredientId])
+}
+
+model InventoryItem {
+  id             String    @id @default(cuid())
+  userId         String
+  ingredientId   String
+  quantity       Float
+  expirationDate DateTime?
+  location       String?   // e.g., "koelkast", "voorraadkast"
+  notes          String?
+  isReserved     Boolean   @default(false) // reserved for planned meals
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+}
+
+model PlannedMeal {
+  id             String    @id @default(cuid())
+  userId         String
+  mealId         String
+  plannedDate    DateTime
+  mealType       String    // "ontbijt", "lunch", "diner", "snack"
+  servings       Int       @default(1)
+  isCompleted    Boolean   @default(false)
+  completedAt    DateTime?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meal Meal @relation(fields: [mealId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mealId, plannedDate, mealType])
+}
+
+model WeeklyInventory {
+  id        String   @id @default(cuid())
+  userId    String
+  weekStart DateTime // Start of the week (Monday)
+  weekEnd   DateTime // End of the week (Sunday)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shoppingLists ShoppingList[]
+
+  @@unique([userId, weekStart])
+}
+
+model ShoppingList {
+  id                String   @id @default(cuid())
+  userId            String
+  weeklyInventoryId String?
+  name              String
+  isCompleted       Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weeklyInventory WeeklyInventory? @relation(fields: [weeklyInventoryId], references: [id], onDelete: SetNull)
+  items           ShoppingListItem[]
+}
+
+model ShoppingListItem {
+  id             String  @id @default(cuid())
+  shoppingListId String
+  ingredientId   String
+  quantity       Float
+  isPurchased    Boolean @default(false)
+  notes          String?
+
+  shoppingList ShoppingList @relation(fields: [shoppingListId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient   @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([shoppingListId, ingredientId])
+}
